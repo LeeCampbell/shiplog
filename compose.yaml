@@ -11,3 +11,17 @@ services:
       interval: 2s
       retries: 15
 
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      DATABASE_URL: postgres://shiplog:shiplog@db:5432/shiplog
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., target: api }
+    environment:
+      DATABASE_URL: postgres://shiplog:shiplog@db:5432/shiplog
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
