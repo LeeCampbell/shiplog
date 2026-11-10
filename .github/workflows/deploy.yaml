@@ -1,0 +1,59 @@
+name: Deploy
+run-name: Deploy ${{ github.event.client_payload.version }} to ${{ github.event.client_payload.environment }}
+on:
+  repository_dispatch:
+    types: [release-approved]
+
+concurrency:
+  group: deploy-${{ github.event.client_payload.environment }}
+
+jobs:
+  # Workshop target: an ephemeral environment on the runner itself.
+  # Swap these steps for your cloud (ECS, Cloud Run, Fly...) later.
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event.client_payload.environment }}
+    permissions:
+      packages: read
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: shiplog
+          POSTGRES_PASSWORD: shiplog
+          POSTGRES_DB: shiplog
+        options: >-
+          --health-cmd "pg_isready -U shiplog" --health-interval 2s --health-retries 15
+    env:
+      VERSION: ${{ github.event.client_payload.version }}
+      DATABASE_URL: postgres://shiplog:shiplog@db:5432/shiplog
+    steps:
+      - name: Validate payload
+        run: |
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad version '$VERSION'"; exit 1; }
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run migrations
+        run: |
+          docker run --rm --network "${{ job.services.db.network }}" \
+            -e DATABASE_URL "$IMAGE-migrate:$VERSION"
+
+      - name: Start API
+        run: |
+          docker run -d --name api --network "${{ job.services.db.network }}" \
+            -e DATABASE_URL -p 3000:3000 "$IMAGE-api:$VERSION"
+
+      - name: Smoke test
+        run: |
+          for _ in $(seq 1 20); do
+            curl -sf localhost:3000/health | tee health.json && break
+            sleep 1
+          done
+          grep -q "\"version\":\"$VERSION\"" health.json
