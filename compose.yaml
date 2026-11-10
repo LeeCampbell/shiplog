@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: shiplog
+      POSTGRES_PASSWORD: shiplog
+      POSTGRES_DB: shiplog
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "shiplog"]
+      interval: 2s
+      retries: 15
+
