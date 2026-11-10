@@ -1,0 +1,23 @@
+{
+  "name": "shiplog",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b && tsc -p packages/api/tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "npm run test -w @shiplog/api",
+    "test:integration": "npm run test:integration -w @shiplog/api",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.14.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2"
+  }
+}
